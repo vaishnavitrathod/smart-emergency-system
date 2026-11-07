@@ -23,6 +23,18 @@ Smart Emergency Response coordinates SOS reports, verified responders, emergency
 
 The worker runs inside the Flask process. Deploy one always-running API instance with one Gunicorn worker. Scale-to-zero hosting pauses dispatch and safe-journey checks.
 
+## Deploy the web app and API
+
+The web client and Flask API need separate services. Use Vercel for the Expo web export and Railway for the always-running API.
+
+1. In Railway, create a service from this GitHub repository and set its root directory to `/backend`. The `Procfile` binds Gunicorn to Railway's assigned port and keeps one worker for the dispatch poller. Configure `/health` as the health check and generate a public HTTPS domain.
+2. Add the backend variables in Railway's Variables tab. At minimum, configure `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_JSON`; keep the service-account JSON only in Railway's secret variable store. Set `DISPATCH_WORKER_ENABLED=true`, `LOCATION_RETENTION_DAYS=30`, and the optional Anthropic and Twilio variables only if those integrations are enabled.
+3. Import the same repository into Vercel and set the root directory to `app`. The included `vercel.json` runs `npx expo export --platform web`, publishes `dist`, and routes app paths to the SPA entry point.
+4. Add the `EXPO_PUBLIC_FIREBASE_*` web-app values from Firebase and set `EXPO_PUBLIC_API_URL` to the Railway HTTPS domain. Set `EXPO_PUBLIC_TRACKING_BASE_URL` to the Vercel production URL. Leave `EXPO_PUBLIC_ALLOWED_EMAIL_DOMAIN` blank to allow personal email domains.
+5. Set Railway's `CORS_ORIGINS` and `PUBLIC_TRACKING_BASE_URL` to the Vercel production origin, then redeploy the API. Use the exact origin, including `https://`, in `CORS_ORIGINS`.
+
+The Vercel URL is the user-facing app URL; the Railway URL is its API. The app needs the Firebase web configuration and Railway API URL before its first successful production build. The API needs Firebase Admin credentials before authentication-dependent requests can work.
+
 ## Requirements
 
 - Windows 10/11 with PowerShell.
