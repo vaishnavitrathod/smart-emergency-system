@@ -1,0 +1,17 @@
+# Local secrets and environment files
+**/.env
+**/.env.*
+!**/.env.example
+**/*service-account*.json
+**/firebase.service.account.json
+
+# Generated dependencies and build output
+node_modules/
+.expo/
+dist/
+.firebase/
+
+# Python-generated files
+backend/.venv/
+**/__pycache__/
+*.py[cod]

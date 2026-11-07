@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Smart Emergency Response",
+    "slug": "smart-emergency-response",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "campussos",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-location", "expo-notifications"],
+    "extra": { "eas": { "projectId": "" } },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}

@@ -1,0 +1,212 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function currentUser() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : {};
+    }
+    function activeAccount() { return signedIn() && currentUser().disabled != true; }
+    function isAdmin() { return activeAccount() && currentUser().role == 'admin'; }
+    function isStaff() { return activeAccount() && currentUser().role in ['admin', 'operator']; }
+    function isResponder() {
+      return activeAccount()
+        && (currentUser().role == 'guard' || (currentUser().role == 'responder' && currentUser().verified == true));
+    }
+    function validLocation(point) {
+      return point is map
+        && point.keys().hasOnly(['lat', 'lng'])
+        && point.lat is number && point.lat >= -90 && point.lat <= 90
+        && point.lng is number && point.lng >= -180 && point.lng <= 180;
+    }
+    function isOwner(incidentId) {
+      return signedIn() && (
+        get(/databases/$(database)/documents/incidents/$(incidentId)).data.userId == request.auth.uid
+        || (exists(/databases/$(database)/documents/incidentsPrivate/$(incidentId))
+          && get(/databases/$(database)/documents/incidentsPrivate/$(incidentId)).data.userId == request.auth.uid)
+      );
+    }
+    function responderOwnsIncident() {
+      return isResponder()
+        && resource.data.assignedResponderId == request.auth.uid
+        || (isResponder() && resource.data.assignedGuardId == request.auth.uid);
+    }
+
+    match /users/{uid} {
+      allow read: if activeAccount() && (request.auth.uid == uid || isAdmin());
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == 'user'
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.keys().hasOnly(['name', 'email', 'phone', 'role', 'createdAt', 'disabled', 'language', 'phoneVerified'])
+        && request.resource.data.name is string
+        && request.resource.data.phone is string
+        && request.resource.data.phoneVerified == false;
+      allow update: if isAdmin()
+        || (activeAccount() && request.auth.uid == uid
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.disabled == resource.data.disabled
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'phone', 'phoneVerified', 'language', 'consentVersion', 'consentAt', 'pushToken',
+            'responderApplication', 'onDuty', 'location', 'lastSeen'
+          ])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['responderApplication'])
+            || (resource.data.role in ['user', 'student']
+              && request.resource.data.responderApplication is map
+              && request.resource.data.responderApplication.keys().hasOnly(['type', 'note', 'status', 'submittedAt'])
+              && request.resource.data.responderApplication.type in ['medical', 'security', 'fire', 'volunteer']
+              && request.resource.data.responderApplication.note is string
+              && request.resource.data.responderApplication.note.size() > 0
+              && request.resource.data.responderApplication.note.size() <= 500
+              && request.resource.data.responderApplication.status == 'pending'))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['onDuty'])
+            || (resource.data.role == 'guard' || (resource.data.role == 'responder' && resource.data.verified == true)))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['location', 'lastSeen'])
+            || ((resource.data.role == 'guard' || (resource.data.role == 'responder' && resource.data.verified == true))
+              && request.resource.data.onDuty == true))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['location'])
+            || validLocation(request.resource.data.location))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['phoneVerified'])
+            || (request.resource.data.phoneVerified == false
+              && request.resource.data.phone != resource.data.phone)));
+      allow delete: if isAdmin();
+    }
+
+    match /incidents/{incidentId} {
+      allow create: if activeAccount()
+        && request.resource.data.status == 'ACTIVE'
+        && request.resource.data.assignedResponderId == null
+        && request.resource.data.assignedGuardId == null
+        && request.resource.data.anonymous is bool
+        && request.resource.data.silent is bool
+        && request.resource.data.category in ['Medical', 'Fire', 'Crime/Safety', 'Accident', 'Harassment', 'Natural hazard', 'Other']
+        && request.resource.data.type == request.resource.data.category
+        && request.resource.data.priority in ['Critical', 'High', 'Medium', 'Low']
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 1000
+        && validLocation(request.resource.data.location)
+        && validLocation(request.resource.data.userLocation)
+        && ((request.resource.data.anonymous == true
+            && request.resource.data.userId == null
+            && getAfter(/databases/$(database)/documents/incidentsPrivate/$(incidentId)).data.userId == request.auth.uid)
+          || (request.resource.data.anonymous == false && request.resource.data.userId == request.auth.uid))
+        && request.resource.data.keys().hasOnly([
+          'id', 'userId', 'location', 'userLocation', 'userLocationUpdatedAt', 'description',
+          'type', 'category', 'priority', 'recommendedAction', 'classifiedBy', 'address',
+          'generalArea', 'nearestLandmark', 'landmarkDistanceM', 'status', 'assignedResponderId',
+          'assignedResponderName', 'assignedGuardId', 'assignedGuardName', 'assignedAt', 'acceptedAt',
+          'arrivedAt', 'resolvedAt', 'cancelledAt', 'escalationLevel', 'anonymous', 'silent',
+          'timeline', 'message', 'createdAt'
+        ]);
+      allow read: if isStaff()
+        || (activeAccount() && resource.data.userId == request.auth.uid)
+        || (activeAccount() && resource.data.anonymous == true
+          && exists(/databases/$(database)/documents/incidentsPrivate/$(incidentId))
+          && get(/databases/$(database)/documents/incidentsPrivate/$(incidentId)).data.userId == request.auth.uid)
+        || (activeAccount() && resource.data.assignedResponderId == request.auth.uid)
+        || (activeAccount() && resource.data.assignedGuardId == request.auth.uid);
+      allow update: if isAdmin()
+        || (isOwner(incidentId)
+          && resource.data.status != 'RESOLVED'
+          && resource.data.status != 'CANCELLED'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userLocation', 'userLocationUpdatedAt'])
+          && validLocation(request.resource.data.userLocation));
+      allow delete: if isAdmin();
+    }
+
+    match /incidentsPrivate/{incidentId} {
+      allow read: if activeAccount() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if activeAccount()
+        && request.resource.data.userId == request.auth.uid
+        && (getAfter(/databases/$(database)/documents/incidents/$(incidentId)).data.userId == request.auth.uid
+          || (getAfter(/databases/$(database)/documents/incidents/$(incidentId)).data.anonymous == true
+            && getAfter(/databases/$(database)/documents/incidents/$(incidentId)).data.userId == null))
+        && request.resource.data.keys().hasOnly(['userId', 'name', 'email', 'phone', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.email is string
+        && request.resource.data.phone is string;
+      allow update, delete: if isAdmin();
+    }
+
+    match /contacts/{contactId} {
+      allow read, delete: if activeAccount() && resource.data.userId == request.auth.uid;
+      allow create: if activeAccount() && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['userId', 'name', 'phone', 'createdAt'])
+        && request.resource.data.name is string && request.resource.data.phone is string
+        && request.resource.data.phone.matches('^\\+[1-9][0-9]{7,14}$');
+      allow update: if activeAccount() && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone']);
+    }
+
+    match /safeWalks/{walkId} {
+      allow read: if activeAccount() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if activeAccount()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'ACTIVE'
+        && request.resource.data.durationMinutes is int
+        && request.resource.data.durationMinutes >= 5
+        && request.resource.data.durationMinutes <= 60
+        && request.resource.data.keys().hasOnly(['userId', 'status', 'durationMinutes', 'destination', 'startsAt', 'endsAt', 'lastLocation', 'createdAt']);
+      allow update: if isAdmin()
+        || (activeAccount() && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastLocation', 'lastLocationAt', 'checkedInAt'])
+          && resource.data.status == 'ACTIVE'
+          && (request.resource.data.status == 'ACTIVE' || request.resource.data.status == 'SAFE')
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastLocation']) || validLocation(request.resource.data.lastLocation)));
+      allow delete: if isAdmin() || (activeAccount() && resource.data.userId == request.auth.uid);
+    }
+
+    match /campusLocations/{locationId} {
+      allow read: if activeAccount();
+      allow write: if isAdmin();
+    }
+
+    match /partners/{partnerId} {
+      allow read: if activeAccount();
+      allow write: if isAdmin();
+    }
+
+    match /medicalIds/{uid} {
+      allow read, delete: if activeAccount() && request.auth.uid == uid;
+      allow create, update: if activeAccount() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['bloodGroup', 'allergies', 'conditions', 'medications', 'updatedAt'])
+        && request.resource.data.bloodGroup is string && request.resource.data.bloodGroup.size() <= 1000
+        && request.resource.data.allergies is string && request.resource.data.allergies.size() <= 1000
+        && request.resource.data.conditions is string && request.resource.data.conditions.size() <= 1000
+        && request.resource.data.medications is string && request.resource.data.medications.size() <= 1000;
+    }
+
+    match /auditLog/{entryId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /publicTracking/{incidentId} {
+      allow read: if true;
+      allow create: if activeAccount()
+        && ((getAfter(/databases/$(database)/documents/incidents/$(incidentId)).data.userId == request.auth.uid)
+          || (getAfter(/databases/$(database)/documents/incidents/$(incidentId)).data.anonymous == true
+            && getAfter(/databases/$(database)/documents/incidentsPrivate/$(incidentId)).data.userId == request.auth.uid))
+        && request.resource.data.keys().hasOnly(['status', 'nearestLandmark', 'landmarkDistanceM', 'generalArea', 'userLocation', 'updatedAt', 'frozen'])
+        && request.resource.data.status == 'ACTIVE'
+        && request.resource.data.frozen == false
+        && validLocation(request.resource.data.userLocation);
+      allow update: if activeAccount()
+        && isOwner(incidentId)
+        && resource.data.frozen != true
+        && resource.data.status != 'RESOLVED'
+        && resource.data.status != 'CANCELLED'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userLocation', 'updatedAt'])
+        && validLocation(request.resource.data.userLocation);
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,67 @@
+export const FIRST_AID_PROTOCOLS = [
+  {
+    id: 'cpr',
+    title: 'Unresponsive and not breathing (adult)',
+    steps: [
+      'Check the scene is safe. Shout for help and check responsiveness and breathing.',
+      'Call the configured emergency number, or ask someone else to call. Ask someone to bring an AED if available.',
+      'Push firmly and fast in the middle of the chest, about two compressions per second. Continue until help arrives or an AED gives instructions.',
+      'Use an AED as soon as available and follow its spoken prompts. Give rescue breaths only if trained and willing.',
+    ],
+    note: 'Adult steps only. CPR for a child or baby differs. Follow emergency dispatcher instructions.',
+    source: 'British Red Cross: unresponsive and not breathing',
+    url: 'https://www.redcross.org.uk/first-aid/learn-first-aid/unresponsive-and-not-breathing',
+  },
+  {
+    id: 'choking',
+    title: 'Choking (adult)',
+    steps: [
+      'If the person can cough, speak, or breathe, encourage them to keep coughing.',
+      'If they cannot breathe, speak, or cough, call emergency services or ask someone to call.',
+      'Lean them forward and give up to five firm back blows between the shoulder blades.',
+      'If still choking, give up to five abdominal thrusts. Repeat cycles until the blockage clears or help arrives.',
+    ],
+    note: 'This adult guidance is not for babies. If the person becomes unresponsive, lower them safely and follow the dispatcher’s instructions.',
+    source: 'British Red Cross: adult choking first aid',
+    url: 'https://www.redcross.org.uk/first-aid/learn-first-aid/choking',
+  },
+  {
+    id: 'bleeding',
+    title: 'Heavy bleeding',
+    steps: [
+      'Check the scene is safe. Use gloves or a clean barrier if available.',
+      'Apply firm, direct pressure to the wound with a clean cloth or dressing.',
+      'Call emergency services or ask someone else to call. Keep pressure on until help arrives.',
+      'If an object is embedded, do not remove it; apply pressure around it.',
+    ],
+    note: 'Do not delay emergency help for severe bleeding.',
+    source: 'British Red Cross: bleeding heavily',
+    url: 'https://www.redcross.org.uk/first-aid/learn-first-aid/bleeding-heavily',
+  },
+  {
+    id: 'burns',
+    title: 'Burns and scalds',
+    steps: [
+      'Make sure it is safe to help and stop the burning process without putting yourself at risk.',
+      'Cool the burn under cool running water for 20 minutes as soon as possible.',
+      'Remove nearby jewellery or clothing only if it is not stuck to the skin.',
+      'After cooling, loosely cover the area with clean non-fluffy material. Do not use ice, butter, creams, or toothpaste.',
+      'Call emergency services for a severe, large, deep, chemical, or electrical burn.',
+    ],
+    note: 'Seek urgent medical advice for serious burns and for any child or baby who is burned.',
+    source: 'NHS: burns and scalds',
+    url: 'https://www.nhs.uk/conditions/burns-and-scalds/',
+  },
+  {
+    id: 'fainting',
+    title: 'Feeling faint',
+    steps: [
+      'Help the person lie down on their back. Raise their legs if there is no injury preventing this.',
+      'Stay with them and watch their breathing and responsiveness.',
+      'If they do not recover promptly, become unresponsive, or have breathing difficulty, call emergency services.',
+    ],
+    note: 'If they are unresponsive but breathing, keep their airway open and follow emergency dispatcher guidance.',
+    source: 'British Red Cross: unresponsive and breathing',
+    url: 'https://www.redcross.org.uk/first-aid/learn-first-aid/unresponsive-and-breathing',
+  },
+];
