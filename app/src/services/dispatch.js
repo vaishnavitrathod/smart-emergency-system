@@ -1,12 +1,12 @@
 import { auth } from '../firebase';
 import { API_URL } from '../config';
 
-async function request(path, method = 'GET', body) {
+async function request(path, method = 'GET', body, timeoutMs = 8000) {
   const user = auth.currentUser;
   if (!user) throw new Error('Sign in to continue.');
   const token = await user.getIdToken();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${API_URL}${path}`, {
       method,
@@ -33,6 +33,11 @@ export const getResponderQueue = getGuardQueue;
 
 export function dispatchIncident(id) {
   return request(`/incidents/${encodeURIComponent(id)}/dispatch`, 'POST', {});
+}
+
+export function notifyContacts(id) {
+  // Render Free can take about a minute to wake after inactivity.
+  return request(`/incidents/${encodeURIComponent(id)}/notify-contacts`, 'POST', {}, 75000);
 }
 
 export function getIncidentTracking(id) {

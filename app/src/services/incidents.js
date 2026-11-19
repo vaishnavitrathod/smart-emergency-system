@@ -13,7 +13,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { advanceIncident, dispatchIncident } from './dispatch';
+import { advanceIncident, dispatchIncident, notifyContacts } from './dispatch';
 import { reverseGeocode } from './places';
 import { normalizePhoneNumber } from './auth';
 
@@ -127,6 +127,8 @@ export async function createIncident({ id: requestedId, location, description, c
     createdAt: serverTimestamp(),
   });
   await batch.commit();
+  // Notify contacts in the background so a sleeping API doesn't delay the SOS screen.
+  notifyContacts(id).catch((error) => console.warn(`Contact notification deferred: ${error.message}`));
   await dispatchIncident(id).catch((error) => console.warn(`Dispatch request deferred: ${error.message}`));
   return id;
 }
